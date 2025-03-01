@@ -133,7 +133,7 @@ public class MainActivity extends AppCompatActivity {
         mClusterManager.setOnClusterClickListener(new ClusterManager.OnClusterClickListener<MyItem>() {//点击聚合点触发
             @Override
             public boolean onClusterClick(Cluster<MyItem> cluster) {
-                //Toast.makeText(getActivity(), "有" + cluster.getSize() + "个点", Toast.LENGTH_SHORT).show();
+                //没用上Toast.makeText(getActivity(), "有" + cluster.getSize() + "个点", Toast.LENGTH_SHORT).show();
                 List<MyItem> items = (List<MyItem>) cluster.getItems();
                 LatLngBounds.Builder builder2 = new LatLngBounds.Builder();
                 int i=0;
