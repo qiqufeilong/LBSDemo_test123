@@ -106,7 +106,7 @@ public class MainActivity extends AppCompatActivity {
                 job = equList.getJSONObject(i);
             } catch (JSONException e) {
                 Log.e("JSON_PARSE", "无效数据格式，跳过第" + i + "项", e);
-                continue; // 跳过当前错误项继续执行1
+                continue; // 跳过当前错误项继续执行2
             }
             //获取经纬度添加地图标注
             String lo = null;
