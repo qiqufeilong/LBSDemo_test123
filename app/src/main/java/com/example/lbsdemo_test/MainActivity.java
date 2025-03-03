@@ -60,7 +60,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // 检查并请求定位权限
+        // 检查并请求定位权限..........
         if (checkPermissions()) {
             try {
                 initMap();
@@ -70,12 +70,16 @@ public class MainActivity extends AppCompatActivity {
         } else {
             requestPermissions();
         }
-        // 定义点聚合管理类ClusterManager
+        // 创建点聚合管理器实例，MyItem是自定义的聚合项类
         mClusterManager = new ClusterManager<MyItem>(this, mBaiduMap);
+
+        // 设置地图状态变化监听器（当地图缩放/移动时触发聚合计算）
         mBaiduMap.setOnMapStatusChangeListener(mClusterManager);
-        // 设置maker点击时的响应
+
+        // 设置地图标记点击监听器（点击单个标记或聚合点时触发）
         mBaiduMap.setOnMarkerClickListener(mClusterManager);
 
+        //初始化JSON数据
         JSONArray equList = new JSONArray();
         JSONObject device1 = new JSONObject();
         JSONObject device2 = new JSONObject();
@@ -98,107 +102,33 @@ public class MainActivity extends AppCompatActivity {
         equList.put(device2);
 
 
-
         List<MyItem> items = new ArrayList<MyItem>();
-        for(int i=0;i<equList.length();i++){
-            JSONObject job = null;
-            try {
-                job = equList.getJSONObject(i);
-            } catch (JSONException e) {
-                Log.e("JSON_PARSE", "无效数据格式，跳过第" + i + "项", e);
-                continue; // 跳过当前错误项继续执行2
-            }
-            //获取经纬度添加地图标注
-            String lo = null;
-            String la = null;
-            try {
-                la = job.has("latitude")?job.getString("latitude"):"";
-                lo = job.has("longitude")?job.getString("longitude"):"";
-            } catch (JSONException e) {
-                throw new RuntimeException(e);
-            }
-
-            if(!TextUtils.isEmpty(lo)&&!TextUtils.isEmpty(la)){
-                LatLng point =  new LatLng(Double.valueOf(la), Double.valueOf(lo));
-                //添加额外信息
-                Bundle bundle = new Bundle();
-                bundle.putString("json",job.toString());
-                MyItem myItem = new MyItem(point,bundle);
-                items.add(myItem);
-
-            }
+        //通过使用json_to_MyItem静态方法，将json数据转换成地图上点的格式MyItem
+        try {
+            items = MapDataProcessor.json_to_MyItem(equList);
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
         }
-        mClusterManager.addItems(items);//把点添加到聚合类里
 
-        mClusterManager.setOnClusterClickListener(new ClusterManager.OnClusterClickListener<MyItem>() {//点击聚合点触发
+        //把点添加到聚合类里
+        mClusterManager.addItems(items);
+
+
+        //点击聚合点触发
+        mClusterManager.setOnClusterClickListener(new ClusterManager.OnClusterClickListener<MyItem>() {
             @Override
             public boolean onClusterClick(Cluster<MyItem> cluster) {
-                //没用上Toast.makeText(getActivity(), "有" + cluster.getSize() + "个点", Toast.LENGTH_SHORT).show();
-                List<MyItem> items = (List<MyItem>) cluster.getItems();
-                LatLngBounds.Builder builder2 = new LatLngBounds.Builder();
-                int i=0;
-                for(MyItem myItem : items){
-                    builder2 = builder2.include(myItem.getPosition());
-                }
-                LatLngBounds latlngBounds = builder2.build();
-                MapStatusUpdate u = MapStatusUpdateFactory.newLatLngBounds(latlngBounds,mMapView.getWidth(),mMapView.getHeight());
-                mBaiduMap.animateMapStatus(u);
+                MapDataProcessor.handleClusterClick(cluster, mBaiduMap, mMapView);
                 return false;
             }
         });
-        mClusterManager.setOnClusterItemClickListener(new ClusterManager.OnClusterItemClickListener<MyItem>() {//点击单个Marker点触发
+
+
+        //点击单个Marker点触发
+        mClusterManager.setOnClusterItemClickListener(new ClusterManager.OnClusterItemClickListener<MyItem>() {
             @Override
             public boolean onClusterItemClick(MyItem item) {
-                if(item!=null&&item.getExtraInfo().get("json")!=null){
-                    String str = String.valueOf(item.getExtraInfo().get("json"));
-                    //点击弹出气泡窗口，显示一些信息。点击窗口可以跳转到详情页面
-                    try {
-                        JSONObject job = new JSONObject(str);
-                        View view = getLayoutInflater().inflate(R.layout.custom_info_bubble2, null);
-                        TextView text_title = (TextView) view.findViewById(R.id.marker_title);
-                        TextView text_phone = (TextView) view.findViewById(R.id.marker_phone);
-                        TextView text_address = (TextView) view.findViewById(R.id.marker_address);
-                        SpannableString titleText = new SpannableString("名称："+(job.has("customerName")?job.getString("customerName"):"无"));
-                        /*titleText.setSpan(new ForegroundColorSpan(R.color.generalColor), 0, titleText.length(), 0);*/
-                        text_title.setText(titleText);
-                        SpannableString phone = new SpannableString("电话："+(job.has("customerPhone")?job.getString("customerPhone"):"无"));
-                        text_phone.setText(phone);
-                        SpannableString address = new SpannableString("地址："+(job.has("userAddr")?job.getString("userAddr"):"无"));
-                        text_address.setText(address);
-                        //点击进入详情页面
-                        Equipment equipment = new Equipment(
-                                job.getDouble("latitude"),
-                                job.getDouble("longitude"),
-                                job.has("customerName") ? job.getString("customerName") : "无客户",
-                                job.has("customerPhone") ? job.getString("customerPhone") : "无电话",
-                                job.has("userAddr") ? job.getString("userAddr") : "无地址"
-                        );
-                        view.setOnClickListener(new View.OnClickListener() {
-                            @Override
-                            public void onClick(View view) {
-                                //使用json数据传递参数到详情页面。
-                                Intent intent;
-                                intent = new Intent(getApplicationContext(), Details.class);
-
-                                Bundle bundle = new Bundle();
-                                // Serializable传递对象
-                                bundle.putSerializable("equipment", equipment);
-                                intent.putExtras(bundle);
-                                intent.putExtra("pageType","detail");//用于标别查看页面
-                                startActivity(intent);
-                            }
-                        });
-                        //定义用于显示该InfoWindow的坐标点
-                        LatLng pt = new LatLng(job.getDouble("latitude"),job.getDouble("longitude"));
-                        //创建InfoWindow , 传入 view， 地理坐标， y 轴偏移量
-                        InfoWindow mInfoWindow = new InfoWindow(view, pt, -47);
-                        //显示InfoWindow
-                        mBaiduMap.showInfoWindow(mInfoWindow);
-
-                    } catch (JSONException e) {
-                        e.printStackTrace();
-                    }
-                }
+                MapDataProcessor.handleClusterItemClick(item, getLayoutInflater(), mBaiduMap, MainActivity.this);
                 return false;
             }
         });
@@ -230,29 +160,6 @@ public class MainActivity extends AppCompatActivity {
 
         // 开启地图定位图层
         mLocationClient.start();
-        //定义Maker坐标点
-        LatLng point = new LatLng(39.963175, 116.400244);
-//构建Marker图标
-        BitmapDescriptor bitmap = BitmapDescriptorFactory
-                .fromResource(R.drawable.icon);
-//构建MarkerOption，用于在地图上添加Marker
-        OverlayOptions option1 = new MarkerOptions()
-                .position(point)
-                .icon(bitmap);
-//在地图上添加Marker，并显示
-        mBaiduMap.addOverlay(option1);
-        //用来构造InfoWindow的Button
-        Button button = new Button(getApplicationContext());
-        button.setBackgroundResource(R.drawable.popup);
-        button.setText("InfoWindow");
-
-//构造InfoWindow
-//point 描述的位置点
-//-100 InfoWindow相对于point在y轴的偏移量
-        InfoWindow mInfoWindow = new InfoWindow(button, point, -100);
-
-//使InfoWindow生效
-        mBaiduMap.showInfoWindow(mInfoWindow);
     }
 
     @Override
